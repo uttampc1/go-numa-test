@@ -150,15 +150,7 @@ func RunGoDefault(sizeMB, iters, randAccesses, gomaxprocs int) []Result {
 }
 
 func runGoDefaultTrial(size, iters, randAccesses, gomaxprocs, trial int) []Result {
-	// Each goroutine gets its own full-size buffer to ensure DRAM access
-	// (small slices fit in L2/L3 cache and don't measure memory bandwidth).
-	// Cap goroutines to limit total memory: each gets `size` bytes,
-	// so N goroutines use N * size total.
 	numGoroutines := gomaxprocs
-	maxGoroutines := 16 // 16 * 256MB = 4GB max
-	if numGoroutines > maxGoroutines {
-		numGoroutines = maxGoroutines
-	}
 	perSize := size
 
 	type trialResult struct {
