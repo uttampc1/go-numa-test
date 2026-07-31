@@ -161,6 +161,20 @@ func runGoDefaultTrial(size, iters, randAccesses, gomaxprocs, trial int) []Resul
 	resultsCh := make(chan trialResult, numGoroutines)
 	var wg sync.WaitGroup
 
+	// Barrier 1: wait group to ensure all gorutines finish warmup
+	var warmupWg sync.WaitGroup
+	warmupWg.Add(numGoroutines)
+
+	// Barrier 2: channel to release all goroutines simultaneously for the benchmark
+	startSeqBench := make(chan struct{})
+
+	// Barrier 3: wait group to catch everyone finishing sequential read
+	var seqWg sync.WaitGroup
+	seqWg.Add(numGoroutines)
+
+	// Barrier 4: channel to start Random Read benchmark for latency measurement
+	startLatBench := make(chan struct{})
+
 	for g := 0; g < numGoroutines; g++ {
 		wg.Add(1)
 		go func() {
@@ -179,23 +193,40 @@ func runGoDefaultTrial(size, iters, randAccesses, gomaxprocs, trial int) []Resul
 
 			// Warmup
 			SequentialRead(buf, 1)
+			warmupWg.Done()
 
+			<-startSeqBench
 			// Benchmark
-			gbps, _ := SequentialRead(buf, iters)
+			SequentialRead(buf, iters)
+			seqWg.Done()
+
+			<-startLatBench
 			_, latNs := RandomRead(buf, randAccesses/numGoroutines)
 
-			resultsCh <- trialResult{seqGBps: gbps, latNs: latNs}
+			resultsCh <- trialResult{latNs: latNs}
 		}()
 	}
+
+	warmupWg.Wait() //Block until every worker goroutine has completed warmup
+
+	t0 := time.Now()
+	close(startSeqBench)      // Close channel to release all goroutines to do Sequential Read
+	seqWg.Wait()              // wait until everyone finishes Sequentual Read
+	elapsed := time.Since(t0)
+	close(startLatBench)      // Close channel to release all goroutines to do Random Read
 
 	wg.Wait()
 	close(resultsCh)
 
-	var totalGBps float64
+	totalBytes := float64(numGoroutines) *
+		(float64(perSize) / float64(CacheLineSize)) *
+		8.0 *
+		float64(iters)
+	totalGBps := totalBytes / elapsed.Seconds() / 1e9
+
 	var totalLat float64
 	count := 0
 	for r := range resultsCh {
-		totalGBps += r.seqGBps
 		totalLat += r.latNs
 		count++
 	}
