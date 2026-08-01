@@ -25,14 +25,14 @@ func SequentialRead(buf []byte, iters int) (gbPerSec float64, elapsed time.Durat
 	start := time.Now()
 	var acc uint64
 	for iter := 0; iter < iters; iter++ {
-		for off := 0; off+8 <= n; off += CacheLineSize {
+		for off := 0; off+8 <= n; off += 8 {
 			acc += *(*uint64)(unsafe.Pointer(&buf[off]))
 		}
 	}
 	elapsed = time.Since(start)
 	sink += acc
 
-	totalBytes := float64(n) / float64(CacheLineSize) * 8.0 * float64(iters)
+	totalBytes := float64(n) * float64(iters)
 	gbPerSec = totalBytes / elapsed.Seconds() / 1e9
 	return gbPerSec, elapsed
 }

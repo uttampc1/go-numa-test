@@ -218,10 +218,7 @@ func runGoDefaultTrial(size, iters, randAccesses, gomaxprocs, trial int) []Resul
 	wg.Wait()
 	close(resultsCh)
 
-	totalBytes := float64(numGoroutines) *
-		(float64(perSize) / float64(CacheLineSize)) *
-		8.0 *
-		float64(iters)
+	totalBytes := float64(numGoroutines) * float64(perSize) * float64(iters)
 	totalGBps := totalBytes / elapsed.Seconds() / 1e9
 
 	var totalLat float64
